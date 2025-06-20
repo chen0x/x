@@ -158,17 +158,18 @@
       padding-left: 1.2em;
     }
     .toc-link {
-      display: inline-block;
+      display: block; /* 扩大 hover 区域，避免边界抖动 */
       color: #fff;
       text-decoration: none;
       font-size: 1em;
       font-weight: 500;
       padding: 0.1em 0.2em;
       border-radius: 4px;
+      will-change: background, color, transform; /* 提前优化 */
       transition: 
         color 0.25s,
         background 0.25s,
-        box-shadow 0.25s,
+        /* box-shadow 0.25s, */ /* 移除 box-shadow 动画，减少重绘 */
         transform 0.25s;
       position: relative;
     }
@@ -186,21 +187,21 @@
     .toc-link:hover {
       color: #fff;
       background: linear-gradient(90deg, #00f0ff 0%, #ff6ec7 100%);
-      box-shadow: 0 0 12px 2px #00f0ff88, 0 0 24px 4px #ff6ec788;
-      transform: scale(1.15) rotate(-2deg);
+      /* box-shadow: 0 0 12px 2px #00f0ff88, 0 0 24px 4px #ff6ec788; */
+      transform: scale(1.12) rotate(-2deg);
       text-shadow: 0 0 8px #fff, 0 0 16px #00f0ff;
       z-index: 1;
     }
     .toc-link-h2:hover {
       color: #fff;
       background: linear-gradient(90deg, #00f0ff 0%, #8a2be2 100%);
-      box-shadow: 0 0 16px 2px #00f0ff99;
+      /* box-shadow: 0 0 16px 2px #00f0ff99; */
       text-shadow: 0 0 12px #00f0ff;
     }
     .toc-link-h3:hover {
       color: #fff;
       background: linear-gradient(90deg, #ff6ec7 0%, #ffd700 100%);
-      box-shadow: 0 0 12px 2px #ff6ec799;
+      /* box-shadow: 0 0 12px 2px #ff6ec799; */
       text-shadow: 0 0 12px #ff6ec7;
     }
     .back-to-top {
