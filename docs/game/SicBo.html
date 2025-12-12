@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>SicBo</title>
+<style>
+  :root{
+    --bg:#031428; --panel:#071a2a; --card:#052033; --muted:#9fb0c8; --accent:#f59e0b;
+    --win:#10b981; --lose:#ef4444; --outline-color: rgba(239,68,68,0.95);
+  }
+  html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial;background:linear-gradient(180deg,#021226 0%,#031428 100%);color:#eaf2ff;overflow:hidden}
+  .layout{height:100vh;display:grid;/*grid-template-columns:1fr 380px;*/gap:12px;padding:8px;box-sizing:border-box}
+  .board{background:var(--panel);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:12px;min-width:0;min-height:0}
+  .right{background:var(--card);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:12px;min-width:0;min-height:0;overflow:hidden}
+  .topbar{display:flex;align-items:center;gap:12px}
+  h1{margin:0;font-size:18px}
+  .balance{background:rgba(255,255,255,0.03);padding:8px 10px;border-radius:8px;font-weight:700}
+  .countdown{margin-left:auto;background:linear-gradient(90deg,#052b42,#0b3b56);padding:8px 10px;border-radius:8px;font-weight:800}
+  .bet-area{display:flex;gap:12px;flex:1;min-height:0}
+  .bet-left{flex:1;background:transparent;display:flex;flex-direction:column;gap:12px;min-width:0;min-height:0}
+  .grid-wrap{background:transparent;border-radius:8px;padding:6px;display:flex;flex-direction:column;gap:8px;min-height:0;overflow:auto}
+  .row{display:grid;gap:8px;align-items:stretch;min-height:0}
+  .row.top{grid-template-columns: 1fr 1fr 1fr 1fr 1fr}
+  .row.triples{grid-template-columns: repeat(6, 1fr)}
+  .row.totals-3{grid-template-columns: repeat(7, 1fr)}
+  .row.totals-4{grid-template-columns: repeat(7, 1fr)}
+  .cell-wrap{position:relative;min-height:88px}
+  .cell{position:relative;background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);border:1px solid rgba(255,255,255,0.12);padding:10px;padding-top:34px;border-radius:8px;display:flex;flex-direction:column;justify-content:space-between;cursor:pointer;box-sizing:border-box;min-height:88px;transition:transform .08s,box-shadow .12s}
+  .cell:active{transform:translateY(1px)}
+  /* top-left multiplier badge (hidden until set) */
+  .top-left{position:absolute;left:8px;top:8px;font-size:20px;padding:3px 6px;border-radius:6px;background:linear-gradient(90deg,#a78bfa,#7c3aed);font-weight:700;pointer-events:none;z-index:5;visibility:hidden;color:#fff}
+  /* top-right placed amount: white bg, black text */
+  .top-right{position:absolute;right:8px;top:8px;font-size:20px;/*padding:4px 7px;*/border-radius:6px;background:#ffffff;color:#000;font-weight:700;z-index:5;min-width:32px;text-align:center}
+  .center{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:6px}
+  .label{font-weight:800;font-size:18px;color:#eaf2ff}
+  .odds{font-size:13px;color:var(--muted)}
+  /* use outline + glow animation for winner highlight (doesn't affect layout) */
+  .outline-winner{
+    outline: 3px solid transparent;
+    box-shadow: 0 0 0 0 rgba(239,68,68,0.0), 0 0 12px rgba(239,68,68,0.06);
+    animation: outline-glow 1100ms ease-in-out forwards;
+  }
+  @keyframes outline-glow{
+    0%{
+      outline-color: rgba(239,68,68,0.0);
+      box-shadow: 0 0 0 0 rgba(239,68,68,0.0), 0 0 4px rgba(239,68,68,0.02);
+      transform: translateY(-2px) scale(1.01);
+    }
+    40%{
+      outline-color: var(--outline-color);
+      box-shadow: 0 8px 28px rgba(239,68,68,0.18), 0 0 10px rgba(239,68,68,0.25);
+      transform: translateY(-4px) scale(1.02);
+    }
+    100%{
+      outline-color: rgba(239,68,68,0.95);
+      box-shadow: 0 18px 50px rgba(239,68,68,0.12), 0 0 18px rgba(239,68,68,0.18);
+      transform: translateY(0) scale(1.0);
+    }
+  }
+
+.chips{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.chip{background:linear-gradient(180deg,#0b1220,#071021);padding:8px 12px;border-radius:999px;cursor:pointer;border:1px solid rgba(255,255,255,0.04);user-select:none}
+.chip.selected{box-shadow:0 8px 24px rgba(5,150,105,0.08);transform:translateY(-1px)}
+.controls{display:flex;gap:8px;align-items:center}
+button{background:#08314a;border:none;color:#fff;padding:8px 10px;border-radius:8px;cursor:pointer}
+button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.04)}
+.small{font-size:12px;color:var(--muted)}
+.card{background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);padding:10px;border-radius:8px;min-height:0}
+.dice{display:flex;gap:8px;align-items:center;font-weight:800}
+.dice .d{width:48px;height:48px;border-radius:8px;background:rgba(255,255,255,0.03);display:flex;align-items:center;justify-content:center;font-size:18px;color:#eaf2ff}
+.dice .d.r {width: 100px;height: 100px;font-size: 50px;}
+.history-list{overflow:auto;max-height:calc(100vh - 240px);padding-right:6px}
+.hist-item{display:flex;justify-content:space-between;padding:8px;border-radius:8px;margin-bottom:8px;background:linear-gradient(180deg,rgba(255,255,255,0.01),transparent);font-size:13px;cursor:pointer;align-items:center}
+.tag-pill{background:rgba(255,255,255,0.06);color:#eaf2ff;padding:3px 8px;border-radius:4px;font-size:12px;margin-left:8px;font-weight:700}
+.tag-pill.big{font-size: 50px;border-radius: 4px;}
+.tag-pill.bbb{background:#f11e1e47}
+.tag-pill.sss{background:#16921661}
+.popup{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);min-width:520px;max-width:90vw;background:linear-gradient(180deg,#021026,rgba(2,6,23,0.85));padding:14px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);z-index:2000;box-shadow:0 18px 60px rgba(2,6,23,0.7);display:none}
+.popup .hdr{display:flex;align-items:center;justify-content:space-between;cursor:default}
+.popup .body{max-height:60vh;overflow:auto;margin-top:10px}
+.popup table{width:100%;border-collapse:collapse;font-size:13px}
+.popup th{text-align:left;padding:8px;border-bottom:1px solid rgba(255,255,255,0.04);color:var(--muted)}
+.popup td{padding:8px;border-bottom:1px solid rgba(255,255,255,0.02)}
+.popup .close{background:transparent;border:1px solid rgba(255,255,255,0.04);padding:6px 8px;border-radius:6px;color:#fff;cursor:pointer}
+.stat-box{background:rgba(255,255,255,0.02);padding:6px 8px;border-radius:6px;min-width:80px;text-align:center}
+.result-card{margin-top:8px;padding:8px;border-radius:8px;background:linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));display:flex;align-items:center;justify-content:space-between}
+.result-left{display:flex;align-items:center;gap:12px}
+.result-tag{background:rgba(255,255,255,0.04);padding:6px 8px;border-radius:8px;font-weight:800}
+.fill{flex:1}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.04);border-radius:8px}
+@media (max-width:980px){ .layout{grid-template-columns:1fr 360px} .popup{min-width:420px} }
+@media (max-width:760px){ .layout{grid-template-columns:1fr} .popup{width:96vw} } </style>
+
+</head>
+<body>
+<div class="layout">
+  <div class="board">
+    <div class="topbar">
+      <h1>骰宝（Sic Bo）模拟器</h1>
+      <div class="balance">余额: <span id="balance">100000</span></div>
+      <div class="countdown" id="countdown">Round in: 5s</div>
+    </div>
+
+
+<div class="bet-area" style="min-height:0">
+  <div class="bet-left">
+    <div class="grid-wrap" id="gridWrap" style="flex:1;min-height:0;overflow:auto">
+      <div class="row top" id="rowTop"></div>
+      <div class="row triples" id="rowTriples"></div>
+      <div class="row totals-3" id="rowTotals3"></div>
+      <div class="row totals-4" id="rowTotals4"></div>
+
+      <!-- current round result displayed under grid -->
+      <div id="currentResult" class="result-card" aria-live="polite" style="display:none">
+        <div class="result-left" style="display:flex;margin: auto;">
+          <div style="display:flex;gap:8px;align-items:center">
+            <div class="dice" id="currentDice">
+              <div class="d r">—</div>
+              <div class="d r">—</div>
+              <div class="d r">—</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items: center;">
+            <span style="font-size: 50px;">=</span>
+            <div style="font-weight:800; margin-right: 20px;font-size: 50px;" id="currentTotal">—</div>
+            <div class="tag-pill big" id="currentTag">—</div>
+          </div>
+        </div>
+        <!-- <div style="text-align:right">
+          <div class="small">本局净盈亏</div>
+          <div style="font-weight:800" id="currentNet">0</div>
+        </div> -->
+      </div>
+
+    </div>
+
+    <div style="display:flex;gap:12px;align-items:center;justify-content:space-between">
+      <div class="chips" id="chips">
+        <div class="small">下注额：</div>
+        <div class="chip" data-amt="10000">10k</div>
+        <div class="chip" data-amt="1000">1k</div>
+        <div class="chip" data-amt="500">500</div>
+        <div class="chip" data-amt="100">100</div>
+        <div class="chip" data-amt="10">10</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="clearBets" class="ghost">清空下注</button>
+      </div>
+    </div>
+
+    <div class="controls">
+      <div class="small">当前注额: <span id="currentChip">100</span></div>
+      <div class="small">本局已押: <span id="totalBet">0</span></div>
+      <div class="fill"></div>
+      <button id="autoPlace" class="ghost">一键重复</button>
+    </div>
+
+    <div class="small" style="margin-top:6px;color:var(--muted);line-height:1.4">
+      每局 5 秒；剩 2 秒封盘并显示随机加倍；剩 1 秒显示结果，同时显示随机倍率与押注金额，随后进入下一盘。
+    </div>
+  </div>
+
+  <div class="right" style="min-height:0">
+    <div class="card stats-inline" id="statsInline">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:800">统计</div>
+        <div class="small" id="statSummary">局数:0</div>
+      </div>
+      <div style="margin-top:6px;display: flex;justify-content: space-around;" id="numFreq"></div>
+      <div style="margin-top:8px;font-size:13px;color:var(--muted)">小/大/围骰 出现</div>
+      <div style="display:flex;gap:8px;margin-top:6px" id="bsStats"></div>
+    </div>
+
+    <div class="card">
+      <div class="small">上一局点数</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
+        <div class="dice" id="lastDice">
+          <div class="d" id="d1">—</div>
+          <div class="d" id="d2">—</div>
+          <div class="d" id="d3">—</div>
+        </div>
+        <div style="text-align:right">
+          <div class="small">总和</div>
+          <div style="font-size:20px;font-weight:800" id="lastTotal">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="flex:1;display:flex;flex-direction:column;gap:8px;min-height:0;overflow:hidden">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="small">历史记录（格式：1-2-3 （6 | 小））</div>
+        <div style="display:flex;gap:6px">
+          <button id="clearHistory" class="ghost">清空</button>
+        </div>
+      </div>
+      <div class="history-list" id="historyList" aria-live="polite"></div>
+    </div>
+  </div>
+</div>
+
+
+  </div>
+</div>
+
+<div class="popup" id="detailPopup" aria-hidden="true">
+  <div class="hdr">
+    <div style="font-weight:800" id="detailTitle">局详情</div>
+    <div style="display:flex;gap:8px">
+      <button id="closeDetail" class="close">关闭</button>
+    </div>
+  </div>
+  <div class="body" id="detailBody"></div>
+</div>
+
+<script>
+/*
+  变更点：
+  - 最终结果用 outline + glow 动画（.outline-winner），不影响布局（不占用宽高）
+  - top-right 显示押注金额，样式为白底黑字
+  - 最后一秒展示时同时确保随机倍率(top-left)和押注(top-right)可见
+  - 将本局结果显示在投注区域下方（#currentResult）
+  - 历史记录中“大/小/围骰”以 tag-pill 展示
+  - 做好空值检查，防止报错
+*/
+
+(function(){
+  const START_BALANCE = 100000;
+  const ROUND_SECONDS = 5;
+  const CLOSE_AT = 2; // remaining seconds -> close & mark
+  const SHOW_RESULT_AT = 1; // remaining second -> show result
+  const MAX_HISTORY = 5000;
+  const totalsOdds = {4:60,5:30,6:17,7:12,8:8,9:6,10:6,11:6,12:6,13:8,14:12,15:17,16:30,17:60};
+
+  // state
+  let balance = START_BALANCE;
+  let currentChip = 100;
+  let bets = {};
+  let pendingRepeat = null;
+  let markedMultipliers = {};
+  let history = [];
+  let numFreq = [0,0,0,0,0,0];
+  let countdown = ROUND_SECONDS;
+  let bettingOpen = true;
+  let timer = null;
+  let settleLock = false;
+
+  // DOM refs
+  const $ = id => document.getElementById(id);
+  const balanceEl = $('balance');
+  const countdownEl = $('countdown');
+  const lastDiceEls = [ $('d1'), $('d2'), $('d3') ];
+  const lastTotalEl = $('lastTotal');
+  const rowTop = $('rowTop');
+  const rowTriples = $('rowTriples');
+  const rowTotals3 = $('rowTotals3');
+  const rowTotals4 = $('rowTotals4');
+  const chips = Array.from(document.querySelectorAll('.chip[data-amt]'));
+  const currentChipEl = $('currentChip');
+  const totalBetEl = $('totalBet');
+  const betsSummaryEl = $('betsSummary');
+  const summaryTotalEl = $('summaryTotal');
+  const historyListEl = $('historyList');
+  const statSummaryEl = $('statSummary');
+  const numFreqContainer = $('numFreq');
+  const bsStats = $('bsStats');
+  const clearBetsBtn = $('clearBets');
+  const autoPlaceBtn = $('autoPlace');
+  const clearHistoryBtn = $('clearHistory');
+
+  const currentResult = $('currentResult');
+  const currentDice = document.getElementById('currentDice');
+  const currentTotal = $('currentTotal');
+  const currentTag = $('currentTag');
+  const currentNet = $('currentNet');
+
+  const detailPopup = $('detailPopup');
+  const detailBody = $('detailBody');
+  const detailTitle = $('detailTitle');
+  const closeDetail = $('closeDetail');
+
+  // cell definitions
+  const defs = [
+    {id:'small', label:'小', odds:'1:1', type:'bigsmall'},
+    {id:'anyTriple', label:'围骰', odds:'30:1', type:'anyTriple'},
+    {id:'big', label:'大', odds:'1:1', type:'bigsmall'}
+  ];
+  for(let n=1;n<=6;n++) defs.push({id:'triple'+n, label:'三子 '+n, odds:'150:1', type:'triple', value:n});
+  for(let s=4;s<=10;s++) defs.push({id:'sum'+s, label:s+'点', odds:totalsOdds[s]+':1', type:'sum', value:s});
+  for(let s=11;s<=17;s++) defs.push({id:'sum'+s, label:s+'点', odds:totalsOdds[s]+':1', type:'sum', value:s});
+
+  function safe(q, root=document){ try{ return root.querySelector(q); }catch(e){return null;} }
+
+  function makeCell(def){
+    return `<div class="cell" data-id="${def.id}">
+      <div class="top-left" data-mult aria-hidden></div>
+      <div class="top-right" data-placed aria-hidden></div>
+      <div class="center">
+        <div class="label" data-label>${def.label}</div>
+        <div class="odds" data-odds>${def.odds}</div>
+      </div>
+    </div>`;
+  }
+
+  function renderGrid(){
+    if(rowTop) rowTop.innerHTML = '';
+    const makeWrap = html => { const w = document.createElement('div'); w.className='cell-wrap'; w.innerHTML = html; return w; };
+    const small = defs.find(d=>d.id==='small');
+    const any = defs.find(d=>d.id==='anyTriple');
+    const big = defs.find(d=>d.id==='big');
+    if(rowTop){ rowTop.appendChild(makeWrap(makeCell(small))); rowTop.appendChild(document.createElement('div')); rowTop.appendChild(makeWrap(makeCell(any))); rowTop.appendChild(document.createElement('div')); rowTop.appendChild(makeWrap(makeCell(big))); }
+
+    if(rowTriples) rowTriples.innerHTML = '';
+    for(let n=1;n<=6;n++){ const def = defs.find(d=>d.id==='triple'+n); if(rowTriples) rowTriples.appendChild(makeWrap(makeCell(def))); }
+
+    if(rowTotals3) rowTotals3.innerHTML = '';
+    for(let s=4;s<=10;s++){ const def = defs.find(d=>d.id==='sum'+s); if(rowTotals3) rowTotals3.appendChild(makeWrap(makeCell(def))); }
+
+    if(rowTotals4) rowTotals4.innerHTML = '';
+    for(let s=11;s<=17;s++){ const def = defs.find(d=>d.id==='sum'+s); if(rowTotals4) rowTotals4.appendChild(makeWrap(makeCell(def))); }
+
+    // attach click handlers safely
+    Array.from(document.querySelectorAll('.cell')).forEach(el=>{
+      el.removeEventListener('click', cellClickHandler);
+      el.addEventListener('click', cellClickHandler);
+    });
+  }
+
+  function cellClickHandler(e){
+    const id = (e && e.currentTarget) ? e.currentTarget.dataset.id : (e.target && e.target.dataset ? e.target.dataset.id : null);
+    if(!id) return;
+    onCellClicked(id);
+  }
+
+  function onCellClicked(id){
+    if(!bettingOpen){ notify('已封盘'); return; }
+    if(balance < currentChip){ notify('余额不足'); return; }
+    bets[id] = (bets[id]||0) + currentChip;
+    balance -= currentChip;
+    refreshUI();
+  }
+
+  // chips
+  chips.forEach(ch=>{
+    ch.addEventListener('click', ()=>{
+      chips.forEach(x=>x.classList.remove('selected'));
+      ch.classList.add('selected');
+      currentChip = parseInt(ch.dataset.amt,10);
+      if(currentChipEl) currentChipEl.textContent = String(currentChip);
+    });
+  });
+  const defSel = document.querySelector('.chip[data-amt="100"]');
+  if(defSel) defSel.classList.add('selected');
+
+  function notify(txt){
+    const t=document.createElement('div'); t.textContent=txt; t.style.position='fixed'; t.style.left='50%'; t.style.top='8%'; t.style.transform='translateX(-50%)'; t.style.background='rgba(0,0,0,0.6)'; t.style.padding='8px 12px'; t.style.borderRadius='8px'; t.style.zIndex=9999; document.body.appendChild(t); setTimeout(()=>t.remove(),1000);
+  }
+
+  // multipliers selection
+  function markRandomMultipliers(){
+    markedMultipliers = {};
+    const all = Array.from(document.querySelectorAll('.cell')).map(c=>c.dataset.id);
+    if(all.length === 0) return;
+    const count = Math.min(all.length, 2 + Math.floor(Math.random()*5)); // 2..6
+    const chosen = new Set();
+    while(chosen.size < count){
+      chosen.add(all[Math.floor(Math.random()*all.length)]);
+    }
+    chosen.forEach(id => markedMultipliers[id] = pickMultiplier());
+  }
+  function pickMultiplier(){
+    const r = Math.random()*100;
+    if(r < 50) return 2;
+    if(r < 75) return 4;
+    if(r < 88) return 8;
+    if(r < 96) return 16;
+    if(r < 99) return 32;
+    return 64;
+  }
+
+  // update visuals: ensure top-left/top-right set, label & odds intact
+  function updateGridVisuals(a){
+    console.log('updateGridVisuals:379',a);
+    
+    Array.from(document.querySelectorAll('.cell')).forEach(cell=>{
+      if(!cell) return;
+      const id = cell.dataset.id;
+      const wrap = cell.parentElement;
+      if(!wrap) return;
+      const multEl = safe('[data-mult]', wrap) || cell.querySelector('.top-left');
+      const placedEl = safe('[data-placed]', wrap) || cell.querySelector('.top-right');
+      // multiplier
+      if(markedMultipliers[id]){
+        if(multEl){ multEl.style.visibility = 'visible'; multEl.textContent = '×' + markedMultipliers[id]; }
+      } else {
+        if(multEl){ multEl.style.visibility = 'hidden'; multEl.textContent = ''; }
+      }
+      // placed amount (white pill)
+      const amt = bets[id] || 0;
+      if(placedEl){ placedEl.textContent = amt > 0 ? String(amt) : 'xx'; }
+      // remove any residual outline class if not in result moment
+      cell.classList.remove('outline-winner');
+    });
+  }
+
+  // settle/display results (called at countdown === SHOW_RESULT_AT)
+  function settleThisRound(){
+    if(settleLock) return;
+    settleLock = true;
+    try{
+      const d1 = roll(), d2 = roll(), d3 = roll();
+      const dice = [d1,d2,d3];
+      const total = d1+d2+d3;
+      const isTriple = (d1===d2 && d2===d3);
+
+      // update last dice UI
+      if(lastDiceEls[0]) lastDiceEls[0].textContent = dice[0];
+      if(lastDiceEls[1]) lastDiceEls[1].textContent = dice[1];
+      if(lastDiceEls[2]) lastDiceEls[2].textContent = dice[2];
+      if(lastTotalEl) lastTotalEl.textContent = total;
+
+      // frequency
+      numFreq[d1-1]++; numFreq[d2-1]++; numFreq[d3-1]++;
+
+      // compute results
+      const counts = [0,0,0,0,0,0]; counts[d1-1]++; counts[d2-1]++; counts[d3-1]++;
+      let netProfit = 0;
+      const results = {};
+      for(const id in bets){
+        const stake = bets[id];
+        let baseWin = 0;
+        if(id==='big' || id==='small'){
+          const bigCond = (total>=11 && total<=17) && !isTriple;
+          const smallCond = (total>=4 && total<=10) && !isTriple;
+          if(id==='big' && bigCond) baseWin = stake*1;
+          if(id==='small' && smallCond) baseWin = stake*1;
+        } else if(id==='anyTriple'){
+          if(isTriple) baseWin = stake*30;
+        } else if(id.startsWith('triple')){
+          const n = parseInt(id.replace('triple',''),10);
+          if(isTriple && d1===n) baseWin = stake*150;
+        } else if(id.startsWith('sum')){
+          const s = parseInt(id.replace('sum',''),10);
+          if(s===total) baseWin = stake * totalsOdds[total];
+        } else if(id.startsWith('num')){
+          const n = parseInt(id.replace('num',''),10);
+          const occ = counts[n-1];
+          if(occ>0) baseWin = stake * occ;
+        }
+        const mult = markedMultipliers[id] || 1;
+        const hitMult = (baseWin > 0 && mult > 1);
+        const win = baseWin * (hitMult ? mult : 1);
+        const extra = hitMult ? (win - baseWin) : 0;
+        const credited = win > 0 ? (stake + win) : 0;
+        balance += credited;
+        const net = credited - stake;
+        netProfit += net;
+        results[id] = { stake, baseWin, mult, hitMult, extra, win, credited, net };
+      }
+
+      // determine winners (set of ids)
+      const winners = new Set();
+      if(isTriple){
+        winners.add('anyTriple');
+        winners.add('triple' + d1);
+      } else {
+        if(total>=4 && total<=10) winners.add('small');
+        if(total>=11 && total<=17) winners.add('big');
+      }
+      winners.add('sum' + total);
+      for(let n=1;n<=6;n++) if(counts[n-1]>0) winners.add('num'+n);
+
+      // glow-outline highlight: add class outline-winner to winning cells (doesn't change layout)
+      Array.from(document.querySelectorAll('.cell')).forEach(c=>c.classList.remove('outline-winner'));
+      winners.forEach(id=>{
+        const el = document.querySelector(`.cell[data-id="${id}"]`);
+        if(el) el.classList.add('outline-winner');
+      });
+
+      // prepare and display currentResult block (shows dice, total, tag, net)
+      const tag = (isTriple ? '围骰' : (total>=4 && total<=10 ? '小' : '大'));
+      if(currentResult){
+        // show dice
+        const dEls = currentDice ? Array.from(currentDice.querySelectorAll('.d')) : [];
+        if(dEls.length >= 3){ dEls[0].textContent = dice[0]; dEls[1].textContent = dice[1]; dEls[2].textContent = dice[2]; }
+        if(currentTotal) currentTotal.textContent = total;
+        if(currentTag) currentTag.textContent = tag;
+        if(currentNet) currentNet.textContent = (netProfit>=0? ('+'+netProfit) : String(netProfit));
+        currentResult.style.display = 'flex';
+      }
+
+      // history entry (compact)
+      const histLine = `${dice.join('-')} | ${total}`;
+      const round = { ts: Date.now(), dice, total, tag, marked: JSON.parse(JSON.stringify(markedMultipliers)), bets: JSON.parse(JSON.stringify(bets)), results, netProfit, histLine };
+      history.unshift(round);
+      if(history.length > MAX_HISTORY) history.pop();
+
+      // clear bets for next round
+      setTimeout(() => {
+        bets = {};
+      }, 800);
+
+      // ensure multipliers and placed amounts visible now (they should be set already)
+      updateGridVisuals(2);
+      refreshUI();
+
+    } finally {
+      settleLock = false;
+    }
+  }
+
+  function updateGridVisuals(a){
+    console.log('updateGridVisuals:507',a);
+    
+    Array.from(document.querySelectorAll('.cell')).forEach(cell=>{
+      if(!cell) return;
+      const id = cell.dataset.id;
+      const wrap = cell.parentElement || cell;
+      const multEl = safe('[data-mult]', wrap) || cell.querySelector('.top-left');
+      const placedEl = safe('[data-placed]', wrap) || cell.querySelector('.top-right');
+
+      if(markedMultipliers[id]){
+        if(multEl){ multEl.style.visibility = 'visible'; multEl.textContent = '×' + markedMultipliers[id]; }
+      } else {
+        if(multEl){ multEl.style.visibility = 'hidden'; multEl.textContent = ''; }
+      }
+
+      const amt = bets[id] || 0;
+      if(placedEl){ 
+        placedEl.textContent = amt > 0 ? String(amt) : '';  //zz
+      }
+    });
+  }
+
+  function refreshUI(){
+    if(balanceEl) balanceEl.textContent = String(balance);
+    updateGridVisuals(1);
+    if(totalBetEl) totalBetEl.textContent = String(Object.values(bets).reduce((a,b)=>a+b,0));
+    if(summaryTotalEl) summaryTotalEl.textContent = String(Object.values(bets).reduce((a,b)=>a+b,0));
+    if(betsSummaryEl){
+      const parts = [];
+      for(const id in bets) parts.push(`${labelFor(id)}:${bets[id]}`);
+      betsSummaryEl.textContent = parts.length ? parts.join('，') : '无';
+    }
+    // history list with tag-pill
+    if(historyListEl){
+      historyListEl.innerHTML = '';
+      history.slice(0,80).forEach(r=>{
+        const div = document.createElement('div'); div.className='hist-item';
+        const left = document.createElement('div'); left.style.minWidth='0';
+        left.innerHTML = `<div style="font-weight:700">${r.histLine}</div><div class="small">押 ${Object.values(r.bets||{}).reduce((a,b)=>a+b,0)}</div>`;
+        const right = document.createElement('div'); right.style.textAlign='right';
+        const tagSpan = document.createElement('span'); tagSpan.className='tag-pill ' + ({'大':'bbb','小':'sss'}[r.tag]); tagSpan.textContent = r.tag;
+        right.appendChild(tagSpan);
+        const profit = document.createElement('div'); profit.style.fontWeight='800'; profit.style.marginTop='6px'; profit.style.color = r.netProfit>=0? 'var(--win)' : 'var(--lose)'; profit.textContent = r.netProfit>=0? ('+'+r.netProfit) : String(r.netProfit);
+        right.appendChild(profit);
+        div.appendChild(left); div.appendChild(right);
+        div.addEventListener('click', ()=> openDetail(r));
+        historyListEl.appendChild(div);
+      });
+    }
+    // stats
+    if(statSummaryEl) statSummaryEl.textContent = `局数:${history.length}`;
+    if(numFreqContainer){
+      numFreqContainer.innerHTML = '';
+      numFreq.forEach((v,i)=>{
+        const el = document.createElement('div'); el.style.minWidth='36px'; el.style.textAlign='center';
+        el.innerHTML = `<div style="font-weight:800">${v}</div><div class="small">${i+1}</div>`;
+        numFreqContainer.appendChild(el);
+      });
+    }
+    if(bsStats){
+      bsStats.innerHTML = '';
+      let bigCount=0, smallCount=0, anyCount=0;
+      history.forEach(r=>{ if(r.tag==='围骰') anyCount++; else if(r.tag==='小') smallCount++; else if(r.tag==='大') bigCount++; });
+      const rounds = history.length || 1;
+      const makeBox = (label,count) => { const box = document.createElement('div'); box.className='stat-box'; box.innerHTML = `<div style="font-weight:800">${count}</div><div class="small">${label} ${Math.round((count/rounds)*10000)/100}%</div>`; return box; };
+      bsStats.appendChild(makeBox('小', smallCount)); bsStats.appendChild(makeBox('大', bigCount)); bsStats.appendChild(makeBox('围骰', anyCount));
+    }
+  }
+
+  function settleAndShow(){
+    // helper to ensure settleThisRound called safely
+    if(!settleLock) settleThisRound();
+  }
+
+  // timer loop
+  function startMainTimer(){
+    if(timer) clearInterval(timer);
+    countdown = ROUND_SECONDS;
+    bettingOpen = true;
+    markedMultipliers = {};
+    updateGridVisuals(3);
+    refreshUI();
+    timer = setInterval(()=>{
+      countdown--;
+      if(countdown <= CLOSE_AT && bettingOpen){
+        bettingOpen = false;
+        markRandomMultipliers();
+        updateGridVisuals(4);
+      }
+      if(countdown === SHOW_RESULT_AT){
+        // ensure multipliers & placed visible, then show result (outline animation)
+        updateGridVisuals(5);
+        settleAndShow();
+      }
+      if(countdown <= 0){
+        // start next round: clear outlines, clear currentResult after short delay
+        Array.from(document.querySelectorAll('.cell')).forEach(c=>c.classList.remove('outline-winner'));
+        // hide currentResult after 900ms so user sees it briefly
+        setTimeout(()=>{ if(currentResult) currentResult.style.display = 'none'; }, 900);
+        // clear markers and apply pending repeats then reset
+        markedMultipliers = {};
+        applyPendingRepeat();
+        bettingOpen = true;
+        bets = Object.assign({}, bets); // no-op just safe
+        countdown = ROUND_SECONDS;
+        updateGridVisuals(6);
+        refreshUI();
+      }
+      if(countdownEl) countdownEl.textContent = `Round in: ${Math.max(countdown,0)}s`;
+    }, 1000);
+  }
+
+  function applyPendingRepeat(){
+    if(!pendingRepeat) return;
+    const total = Object.values(pendingRepeat).reduce((a,b)=>a+b,0);
+    if(balance >= total){
+      bets = JSON.parse(JSON.stringify(pendingRepeat));
+      balance -= total;
+    } else {
+      notify('余额不足，重复下注取消');
+      pendingRepeat = null;
+    }
+  }
+
+  function openDetail(round){
+    if(!detailPopup || !detailBody || !detailTitle) return;
+    detailTitle.textContent = `局详情 • ${new Date(round.ts).toLocaleString()}`;
+    const table = document.createElement('table');
+    const thead = document.createElement('thead');
+    thead.innerHTML = `<tr><th>押注项</th><th>注额</th><th>赔率</th><th>倍率</th><th>多得</th><th>盈亏</th></tr>`;
+    table.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    for(const id in round.bets){
+      const res = round.results[id] || {};
+      const stake = res.stake || round.bets[id];
+      const oddsText = (res.baseWin && stake) ? ((res.baseWin/stake) + ':1') : '-';
+      const mult = res.hitMult ? ('×'+res.mult) : '-';
+      const extra = res.extra ? ('+'+res.extra) : (res.extraFromMult? ('+'+res.extraFromMult) : '-');
+      const net = res.net !== undefined ? res.net : (res.credited? (res.credited - stake) : -stake);
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${labelFor(id)}</td><td>${stake}</td><td>${oddsText}</td><td>${mult}</td><td>${extra}</td><td style="color:${net>=0? 'var(--win)':'var(--lose)'}">${net>=0? '+'+net:net}</td>`;
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    detailBody.innerHTML = ''; detailBody.appendChild(table);
+    // marked list
+    const keys = Object.keys(round.marked || {});
+    if(keys.length){
+      const box = document.createElement('div'); box.style.marginTop='10px'; box.innerHTML = `<div style="font-weight:700">随机加倍：</div>`;
+      const list = document.createElement('div'); list.style.display='flex'; list.style.flexWrap='wrap'; list.style.gap='8px'; list.style.marginTop='6px';
+      keys.forEach(k=>{ const b=document.createElement('div'); b.style.padding='6px 8px'; b.style.borderRadius='6px'; b.style.background='rgba(255,255,255,0.02)'; b.textContent = `${labelFor(k)} ×${round.marked[k]}`; list.appendChild(b); });
+      box.appendChild(list); detailBody.appendChild(box);
+    }
+    detailPopup.style.display = 'block'; detailPopup.setAttribute('aria-hidden','false');
+  }
+  if(closeDetail) closeDetail.addEventListener('click', ()=> { if(detailPopup){ detailPopup.style.display='none'; detailPopup.setAttribute('aria-hidden','true'); detailBody.innerHTML=''; } });
+
+  function labelFor(id){
+    if(!id) return id;
+    if(id==='small') return '小';
+    if(id==='big') return '大';
+    if(id==='anyTriple') return '围骰';
+    if(id.startsWith('triple')) return '三子 ' + id.replace('triple','');
+    if(id.startsWith('sum')) return id.replace('sum','') + '点';
+    return id;
+  }
+
+  function roll(){ return Math.floor(Math.random()*6)+1; }
+
+  // controls
+  if(clearBetsBtn) clearBetsBtn.addEventListener('click', ()=> { const refund = Object.values(bets).reduce((a,b)=>a+b,0); balance += refund; bets = {}; refreshUI(); });
+  if(autoPlaceBtn) autoPlaceBtn.addEventListener('click', ()=> { if(Object.keys(bets).length===0){ notify('当前无下注'); return; } pendingRepeat = JSON.parse(JSON.stringify(bets)); notify('已保存一键重复下注'); });
+  if(clearHistoryBtn) clearHistoryBtn.addEventListener('click', ()=> { history = []; numFreq = [0,0,0,0,0,0]; refreshUI(); });
+
+  // init
+  renderGrid();
+  updateGridVisuals(7);
+  refreshUI();
+  startMainTimer();
+
+  // expose for debug
+  window._sim = { history, bets, markedMultipliers };
+
+})();
+</script>
+
+</body>
+</html>
